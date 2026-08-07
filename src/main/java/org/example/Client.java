@@ -1,28 +1,25 @@
 package org.example;
 
-import com.fasterxml.jackson.databind.deser.SettableBeanProperty;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
-public class Demo extends TelegramLongPollingBot {
+public class Client extends TelegramLongPollingBot {
 
 
     private static final List<String> SUBJECTS = List.of(
@@ -57,6 +54,11 @@ public class Demo extends TelegramLongPollingBot {
     private final Map<Long, UserInfo> currentUserStates = new HashMap<>();
     private final Map<Long, List<UserInfo>> savedUserStates = new HashMap<>();
     private final Map<Long, List<Integer>> oldBookingMessageIds= new HashMap<>();
+    private Admin admin= new Admin();
+    private final Set<String> selectedDates= new HashSet<>();
+    private final List<Set<String>> savedSelection= new ArrayList<>();
+
+
 
 
     @Override
@@ -70,7 +72,15 @@ public class Demo extends TelegramLongPollingBot {
             if (text.equals("/start")) {
                 currentUserStates.put(chatID, new UserInfo());
                 currentUserStates.get(chatID).setname(name);
+                System.out.println(name);
                 mainMenu(chatID);
+            } else if (admin.isAdmin(chatID) && text.equals("/admin")) {
+                AdminMenu(chatID);
+            } else if (admin.isAdmin(chatID) && text.equals("Добавить слот")) {
+                AdminDates(chatID);
+            } else if (admin.isAdmin(chatID) && text.equals("Готово ✅")) {
+                savedSelection.add(selectedDates);
+                System.out.println(savedSelection);
             } else if (text.equals("\uD83D\uDD8A Записаться на урок")) {
                 currentUserStates.put(chatID, new UserInfo());
                 currentUserStates.get(chatID).setname(name);
@@ -137,7 +147,35 @@ public class Demo extends TelegramLongPollingBot {
                 bookings.remove(index);
 
                 myBookings(chatID);
+            } else if (data.startsWith("date:")) {
+                String date= data.substring(5);
+
+                if (selectedDates.contains(date)){
+                    selectedDates.remove(date);
+                } else{
+                    selectedDates.add(date);
+
+                }
+                System.out.println(selectedDates);
+
+                List<String> dates= generateDates(14);
+                List<List<InlineKeyboardButton>> rows = buildRows(dates, 4);
+
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                markup.setKeyboard(rows);
+
+                EditMessageReplyMarkup edit= new EditMessageReplyMarkup();
+                edit.setChatId(chatID);
+                edit.setMessageId(messageID);
+                edit.setReplyMarkup(markup);
+
+                try{
+                    execute(edit);
+                } catch(TelegramApiException e){
+                    e.printStackTrace();
+                }
             }
+
         }
     } catch(Exception e) {
             e.printStackTrace();
@@ -393,6 +431,93 @@ public class Demo extends TelegramLongPollingBot {
             }
         }
         oldBookingMessageIds.put(chatID, newMessageIds);
+    }
+
+
+
+
+    private void AdminMenu(long chatID){
+        KeyboardButton slotsButton= new KeyboardButton("Добавить слот");
+        KeyboardButton lessonsButton= new KeyboardButton("Мои уроки");
+
+        KeyboardRow row = new KeyboardRow();
+        row.add(slotsButton);
+        row.add(lessonsButton);
+
+        ReplyKeyboardMarkup markup = new ReplyKeyboardMarkup();
+        markup.setKeyboard(List.of(row));
+        markup.setResizeKeyboard(true);
+        markup.setOneTimeKeyboard(false);
+
+        SendMessage message= new SendMessage();
+        message.setChatId(String.valueOf(chatID));
+        message.setText("Выберите действие");
+        message.setReplyMarkup(markup);
+
+        try {
+            execute(message);
+        } catch(TelegramApiException e){
+            e.printStackTrace();
+        }
+    }
+
+    private List<String> generateDates(int daysAhead){
+        List<String> dates= new ArrayList<>();
+        LocalDate today= LocalDate.now();
+
+        for (int i = 1; i < daysAhead; i++) {
+            LocalDate date= today.plusDays(i);
+            String formatted= date.format(DateTimeFormatter.ofPattern("dd.MM (E)", new Locale("ru")));
+            dates.add(formatted);
+        }
+        return dates;
+    }
+
+    private List<List<InlineKeyboardButton>> buildRows(List<String> dates, int buttonsPerRow){
+        List<List<InlineKeyboardButton>> rows= new ArrayList<>();
+        for (int i = 0; i < dates.size(); i+=buttonsPerRow) {
+            List<InlineKeyboardButton> row= new ArrayList<>();
+            for (int j = i; j < i+buttonsPerRow && j<dates.size(); j++) {
+                InlineKeyboardButton dateButton= new InlineKeyboardButton(dates.get(j));
+
+                if (selectedDates.contains(dates.get(j))){
+                    dateButton.setText("✅ "+ dates.get(j));
+                } else{
+                    dateButton.setText(dates.get(j));
+                }
+                dateButton.setCallbackData("date:"+ dates.get(j));
+                row.add(dateButton);
+            }
+            rows.add(row);
+        }
+
+        InlineKeyboardButton doneButton= new InlineKeyboardButton("Готово ✅");
+
+        doneButton.setCallbackData("dates_done");
+        List<InlineKeyboardButton> doneRow= new ArrayList<>();
+        doneRow.add(doneButton);
+
+        rows.add(doneRow);
+        return rows;
+    }
+
+    private void AdminDates(long chatID){
+        List<String> dates= generateDates(14);
+        List<List<InlineKeyboardButton>> rows = buildRows(dates, 4);
+
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        markup.setKeyboard(rows);
+        
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatID));
+        message.setText("Выберите дату, когда вам будет удобно провести урок");
+        message.setReplyMarkup(markup);
+
+        try{
+            execute(message);
+        } catch (TelegramApiException e){
+            e.printStackTrace();
+        }
     }
 }
 
