@@ -2,6 +2,7 @@ package org.example;
 
 public class UserInfo {
     private String name;
+    private String about;
     private String subject;
     private String duration;
     private String date;
@@ -39,6 +40,13 @@ public class UserInfo {
         this.time = time;
     }
 
+    public String getAbout() {
+        return about;
+    }
+
+    public void setAbout(String about) {
+        this.about = about;
+    }
 
     public String getname() {
         return name;
