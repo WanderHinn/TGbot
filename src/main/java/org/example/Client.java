@@ -45,6 +45,8 @@ public class Client extends TelegramLongPollingBot {
     private final Set<String> TIMES = selectedTimes;
 
     private final Map<Long, UserInfo> currentUserStates = new HashMap<>();
+    //Этап регистрации, 1 = ожидание ответа на "Как вас зовут?", 2 = ожидание ответа на duration of studies
+    private Map<Long, Integer> registrationStep = new HashMap<>();
     private final Map<Long, List<UserInfo>> savedUserStates = new HashMap<>();
     private final Map<Long, List<Integer>> oldBookingMessageIds= new HashMap<>();
     private Admin admin= new Admin();
@@ -60,7 +62,25 @@ public class Client extends TelegramLongPollingBot {
             String text = update.getMessage().getText();
             long chatID = update.getMessage().getChatId();
 
-            if (text.equals("/start")) {
+            if (registrationStep.getOrDefault(chatID, 0) == 1) {
+                currentUserStates.get(chatID).setname(text);
+                registrationStep.put(chatID, 2);
+
+                SendMessage message = new SendMessage();
+                message.setChatId(chatID);
+                message.setText("Сколько времени вы уже занимаетесь этим предметом? Если только начинаете — так и напишите.");
+                try {
+                    execute(message);
+                } catch (TelegramApiException e) {
+                    e.printStackTrace();
+                }
+
+            } else if (registrationStep.getOrDefault(chatID, 0) == 2) {
+                currentUserStates.get(chatID).setAbout(text);
+                registrationStep.remove(chatID);
+                subjects(chatID);
+
+            } else if (text.equals("/start")) {
                 currentUserStates.put(chatID, new UserInfo());
                 currentUserStates.get(chatID).setname(name);
                 System.out.println(name);
@@ -74,6 +94,19 @@ public class Client extends TelegramLongPollingBot {
                 AdminMenu(chatID);
             } else if (text.equals("\uD83D\uDD8A Записаться на урок")) {
                 currentUserStates.put(chatID, new UserInfo());
+                askStudentType(chatID);
+            } else if (text.equals("Я новый ученик")) {
+            registrationStep.put(chatID, 1);
+
+            SendMessage message = new SendMessage();
+            message.setChatId(chatID);
+            message.setText("Как вас зовут?");
+            try {
+                execute(message);
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+            } else if (text.equals("Я уже учусь здесь")) {
                 currentUserStates.get(chatID).setname(name);
                 subjects(chatID);
             } else if (text.equals("\uD83D\uDCC5 Мои записи")) {
@@ -313,6 +346,31 @@ public class Client extends TelegramLongPollingBot {
         message.setText("Выберите предмет:");
         message.setReplyMarkup(markup);
 
+
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void askStudentType(long chatID) {
+        KeyboardButton newStudent = new KeyboardButton("Я новый ученик");
+        KeyboardButton oldStudent = new KeyboardButton("Я уже учусь здесь");
+
+        KeyboardRow row = new KeyboardRow();
+        row.add(newStudent);
+        row.add(oldStudent);
+
+        ReplyKeyboardMarkup markup = new ReplyKeyboardMarkup();
+        markup.setKeyboard(List.of(row));
+        markup.setResizeKeyboard(true);
+        markup.setOneTimeKeyboard(false);
+
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatID));
+        message.setText("Вы уже занимались у нас раньше?");
+        message.setReplyMarkup(markup);
 
         try {
             execute(message);
