@@ -25,9 +25,13 @@ public class Admin{
     private boolean isAdmin;
 
 
-    private static final long admin_chat_id=848485102;
-    public boolean isAdmin(long chatID){
-        return chatID==admin_chat_id;
+    private static final long admin_chat_id1=848485102;
+    private static final long admin_chat_id2=688296863;
+    public boolean isAdmin1(long chatID){
+        return chatID==admin_chat_id1;
+    }
+    public boolean isAdmin2(long chatID){
+        return chatID==admin_chat_id2;
     }
 
 

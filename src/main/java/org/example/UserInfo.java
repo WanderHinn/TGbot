@@ -1,12 +1,21 @@
 package org.example;
 
 public class UserInfo {
+    private String userName;
     private String name;
     private String about;
     private String subject;
     private String duration;
     private String date;
     private String time;
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
 
     public String getDate() {
         return date;
