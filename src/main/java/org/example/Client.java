@@ -19,6 +19,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import javax.swing.text.html.HTML;
+import java.security.Key;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -50,10 +51,12 @@ public class Client extends TelegramLongPollingBot {
     //Этап регистрации, 1 = ожидание ответа на "Как вас зовут?", 2 = ожидание ответа на duration of studies
     private Map<Long, Integer> registrationStep = new HashMap<>();
     private final Map<Long, List<UserInfo>> savedUserStates = new HashMap<>();
+    private final Map<Long, List<UserDetail>> savedUserInfo= new HashMap<>();
     private final Map<Long, List<Integer>> oldBookingMessageIds= new HashMap<>();
     private Admin admin= new Admin();
     private Admin admin2= new Admin();
     private final List<Slot> slots= new ArrayList<>();
+    private UserDetail info= new UserDetail();
 
 
 
@@ -65,7 +68,6 @@ public class Client extends TelegramLongPollingBot {
             String name = update.getMessage().getFrom().getFirstName();
             String text = update.getMessage().getText();
             long chatID = update.getMessage().getChatId();
-            String link= "https://t.me/"+ userName;
 
             if (registrationStep.getOrDefault(chatID, 0) == 1) {
                 currentUserStates.get(chatID).setname(text);
@@ -101,6 +103,9 @@ public class Client extends TelegramLongPollingBot {
                 myBookingsAdmin(chatID);
             } else if ((admin.isAdmin1(chatID) || admin.isAdmin2(chatID)) && text.equals("\uD83C\uDFE0 На главную")) {
                 AdminMenu(chatID);
+            } else if ((admin.isAdmin1(chatID) || admin.isAdmin2(chatID)) && text.equals("\uD83D\uDC68\u200D\uD83C\uDF93 Мои ученики")) {
+                returnHomeAdmin(chatID, "\uD83D\uDC68\u200D\uD83C\uDF93 Здесь вы сможете посмотреть ваших учеников и информацию о них:");
+                myStudents(chatID);
             } else if (text.equals("\uD83D\uDD8A Записаться на урок")) {
                 currentUserStates.put(chatID, new UserInfo());
                 askStudentType(chatID);
@@ -122,6 +127,7 @@ public class Client extends TelegramLongPollingBot {
             } else if (text.equals("\uD83D\uDCC5 Мои записи")) {
                 returnHome(chatID);
                 myBookings(chatID);
+                System.out.println(savedUserStates);
             } else if (text.equals("\uD83C\uDFE0 Домой")) {
                 mainMenu(chatID);
             } else if (SUBJECTS.contains(text)) {
@@ -327,7 +333,7 @@ public class Client extends TelegramLongPollingBot {
     }
 
     public String getBotToken() {
-        return "8934207972:AAHdMPtS-aq_q39u7LcgGo3FXmoTNO2BGl4";
+        return System.getenv("8934207972:AAHdMPtS-aq_q39u7LcgGo3FXmoTNO2BGl4");
     }
 
     private ReplyKeyboardMarkup mainMenu(long chatID) {
@@ -581,11 +587,11 @@ public class Client extends TelegramLongPollingBot {
                 // Вытаскиваем конкретную запись человека (так как их может быть несколько)
                 UserInfo booking = bookings.get(i);
 
-                sb.append("<b>✏\uFE0F Запись номер: <b>").append(i + 1).append("\n");
-                sb.append("<b>\uD83D\uDCDA Предмет: <b>").append(booking.getSubject()).append("\n");
-                sb.append("<b>⏳ Длительность: <b>").append(booking.getDuration()).append("\n");
-                sb.append("<b>\uD83D\uDCC6 Дата: <b>").append(booking.getDate()).append("\n");
-                sb.append("<b>\uD83D\uDD50 Время: <b>").append(booking.getTime()).append("\n");
+                sb.append("<b>✏\uFE0F Запись номер: </b>").append(i + 1).append("\n");
+                sb.append("<b>\uD83D\uDCDA Предмет: </b>").append(booking.getSubject()).append("\n");
+                sb.append("<b>⏳ Длительность: </b>").append(booking.getDuration()).append("\n");
+                sb.append("<b>\uD83D\uDCC6 Дата: </b>").append(booking.getDate()).append("\n");
+                sb.append("<b>\uD83D\uDD50 Время: </b>").append(booking.getTime()).append("\n");
 
                 InlineKeyboardButton button= new InlineKeyboardButton();
                 button.setText("Удалить запись ❌");
@@ -613,15 +619,22 @@ public class Client extends TelegramLongPollingBot {
     }
 
     private void AdminMenu(long chatID){
+        List<KeyboardRow> rows= new ArrayList<>();
         KeyboardButton slotsButton= new KeyboardButton("\uD83D\uDDF3 Добавить слот");
         KeyboardButton lessonsButton= new KeyboardButton("\uD83D\uDCCC Мое расписание");
+        KeyboardButton myStudents= new KeyboardButton("\uD83D\uDC68\u200D\uD83C\uDF93 Мои ученики");
 
-        KeyboardRow row = new KeyboardRow();
-        row.add(slotsButton);
-        row.add(lessonsButton);
+        KeyboardRow row1= new KeyboardRow();
+        row1.add(slotsButton);
+        rows.add(row1);
+
+        KeyboardRow row2= new KeyboardRow();
+        row2.add(lessonsButton);
+        row2.add(myStudents);
+        rows.add(row2);
 
         ReplyKeyboardMarkup markup = new ReplyKeyboardMarkup();
-        markup.setKeyboard(List.of(row));
+        markup.setKeyboard(rows);
         markup.setResizeKeyboard(true);
         markup.setOneTimeKeyboard(false);
 
@@ -674,6 +687,20 @@ public class Client extends TelegramLongPollingBot {
         doneRow.add(doneButton);
 
         rows.add(doneRow);
+        return rows;
+    }
+
+    private List<KeyboardRow> buildKeyboardRows(KeyboardRow row, int buttonsPerRow){
+        List<KeyboardRow> rows= new ArrayList<>();
+        for (int i = 0; i < row.size(); i+=buttonsPerRow) {
+            KeyboardRow row1= new KeyboardRow();
+            for (int j = i; j < i+buttonsPerRow && j<row.size(); j++) {
+                KeyboardButton button= new KeyboardButton();
+                button.setText(String.valueOf(row.get(j)));
+                row1.add(button);
+            }
+            rows.add(row1);
+        }
         return rows;
     }
 
@@ -845,16 +872,16 @@ public class Client extends TelegramLongPollingBot {
 
                     if(userInfo== studentBooking.getFirst()) {
                         if(userName!= null) {
-                            sb.append("<u>\uD83D\uDC68\u200D\uD83C\uDF93 Ученик:<u>" + name + "\n" +"Профиль: "+ "https://t.me/" + userName + "\n");
+                            sb.append("<b>\uD83D\uDC68\u200D\uD83C\uDF93 Ученик:</b>" + name + "\n" +"\uD83D\uDD17 <b>Профиль: </b>"+ "<u>https://t.me/" + userName + "</u>"+ "\n" + "\n");
                         } else{
-                            sb.append("<u>\uD83D\uDC68\u200D\uD83C\uDF93 Ученик:<u> " + name + "\n" + "Профиль: " + "https://t.me/" + linkID + "\n");
+                            sb.append("<b>\uD83D\uDC68\u200D\uD83C\uDF93 Ученик:</b> " + name + "\n" + "\uD83D\uDD17 <b>Профиль: </b>" + "<u>https://t.me/" + linkID + "</u>" + "\n" + "\n");
                         }
                     }
-                    sb.append("<b>✏\uFE0F Запись номер:<b> " + lessons + "\n" + "\n");
-                    sb.append("<b>\uD83D\uDCDA Предмет:<b> " + subject + "\n");
-                    sb.append("<b>⌛\uFE0F Длительность урока:<b> " + duration + "\n");
-                    sb.append("<b>\uD83D\uDCC6 Дата проведения:<b> " + date + "\n");
-                    sb.append("<b>\uD83D\uDD50 Время проведения:<b> " + time + "\n");
+                    sb.append("<b>✏\uFE0F Запись номер:</b> " + lessons + "\n" + "\n");
+                    sb.append("<b>\uD83D\uDCDA Предмет:</b> " + subject + "\n");
+                    sb.append("<b>⌛\uFE0F Длительность урока:</b> " + duration + "\n");
+                    sb.append("<b>\uD83D\uDCC6 Дата проведения:</b> " + date + "\n");
+                    sb.append("<b>\uD83D\uDD50 Время проведения:</b> " + time + "\n");
                     if (userInfo!=studentBooking.getLast()){
                         sb.append("\n");
                     }
@@ -925,6 +952,102 @@ public class Client extends TelegramLongPollingBot {
             execute(message);
         } catch(TelegramApiException e){
             e.printStackTrace();
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    private void sendMessage(long chatID, String text){
+        SendMessage message =new SendMessage();
+        message.setText(text);
+        message.setChatId(chatID);
+
+        try {
+            execute(message);
+        } catch(TelegramApiException e){
+            e.printStackTrace();
+        }
+    }
+
+    private KeyboardRow createButtonRow(long chatID, String text){
+
+        KeyboardButton button = new KeyboardButton(text);
+        KeyboardRow row = new KeyboardRow();
+        row.add(button);
+
+        return row;
+    }
+
+    private ReplyKeyboardMarkup createButtonMarkup(KeyboardRow row){
+        ReplyKeyboardMarkup markup = new ReplyKeyboardMarkup();
+        markup.setResizeKeyboard(true);
+        markup.setKeyboard(List.of(row));
+        markup.setOneTimeKeyboard(false);
+
+        return markup;
+    }
+
+    private void sendMessageButton(long chatID, String text, ReplyKeyboardMarkup markup){
+        SendMessage message =new SendMessage();
+        message.setText(text);
+        message.setChatId(chatID);
+        message.setReplyMarkup(markup);
+
+        try {
+            execute(message);
+        } catch(TelegramApiException e){
+            e.printStackTrace();
+        }
+    }
+
+    private void myStudents(long chatID){
+        StringBuilder sb= new StringBuilder();
+        if (savedUserStates.isEmpty()) {
+            sb.append("У вас еще нет учеников \uD83D\uDE15");
+
+            SendMessage message = new SendMessage();
+            message.setChatId(chatID);
+            message.setText(sb.toString());
+            try {
+                execute(message);
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+        }
+        for (Map.Entry<Long, List<UserInfo>> allBookings: savedUserStates.entrySet()) {
+            List<UserInfo> studentBooking= allBookings.getValue();
+            for (UserInfo booking : studentBooking) {
+                String name = booking.getname();
+                String info = booking.getAbout();
+
+                sb.append("\uD83D\uDC68\u200D\uD83C\uDF93 Ученик: ").append(name).append("\n");
+                sb.append("ℹ\uFE0F Информаиця: ").append(info);
+                break;
+            }
+            SendMessage message = new SendMessage();
+            message.setChatId(chatID);
+            message.setText(sb.toString());
+
+            try{
+                execute(message);
+            } catch(TelegramApiException e){
+                e.printStackTrace();
+            }
         }
     }
 }
