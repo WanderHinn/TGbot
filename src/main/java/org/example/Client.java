@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.time.MonthDay;
 
 public class Client extends TelegramLongPollingBot {
 
@@ -88,8 +89,10 @@ public class Client extends TelegramLongPollingBot {
             } else if (text.equals("/start")) {
                 currentUserStates.put(chatID, new UserInfo());
                 currentUserStates.get(chatID).setname(name);
-                System.out.println(name);
-                System.out.println(chatID);
+
+                long dbUserId = Database.upsertUser(chatID, name, userName);
+                currentUserStates.get(chatID).setDbUserId(dbUserId);
+
                 mainMenu(chatID);
             } else if ((admin.isAdmin1(chatID) || admin.isAdmin2(chatID)) && text.equals("/admin")) {
                 AdminMenu(chatID);
@@ -102,8 +105,32 @@ public class Client extends TelegramLongPollingBot {
             } else if ((admin.isAdmin1(chatID) || admin.isAdmin2(chatID)) && text.equals("\uD83C\uDFE0 На главную")) {
                 AdminMenu(chatID);
             } else if (text.equals("\uD83D\uDD8A Записаться на урок")) {
-                currentUserStates.put(chatID, new UserInfo());
+                UserInfo user = new UserInfo();
+
+                long dbUserId = Database.upsertUser(chatID, name, userName);
+
+                if (dbUserId == -1) {
+                    SendMessage message = new SendMessage();
+                    message.setChatId(chatID);
+                    message.setText("Не удалось подключиться к базе данных. Попробуйте позже.");
+
+                    try {
+                        execute(message);
+                    } catch (TelegramApiException e) {
+                        e.printStackTrace();
+                    }
+
+                    return;
+                }
+
+                user.setDbUserId(dbUserId);
+                user.setname(name);
+                user.setUserName(userName);
+
+                currentUserStates.put(chatID, user);
+
                 askStudentType(chatID);
+
             } else if (text.equals("\uD83D\uDC76 Я новый ученик")) {
             registrationStep.put(chatID, 1);
 
@@ -147,10 +174,14 @@ public class Client extends TelegramLongPollingBot {
             } else if (getAvailableDates().contains(text)) {
                 currentUserStates.get(chatID).setDate(text);
                 times(chatID);
-            } else if (getAvailableTimes(currentUserStates.get(chatID).getDate()).contains(text)) {
+            } else if (currentUserStates.get(chatID) != null
+                    && currentUserStates.get(chatID).getDate() != null
+                    && getAvailableTimes(currentUserStates.get(chatID).getDate()).contains(text)) {
+
                 currentUserStates.get(chatID).setTime(text);
 
                 SendMessage message = new SendMessage();
+
                 message.setChatId(String.valueOf(chatID));
                 message.setText(String.valueOf(currentUserStates.get(chatID)));
 
@@ -163,11 +194,16 @@ public class Client extends TelegramLongPollingBot {
                 submit(chatID);
             } else if (text.equals("Да")) {
                 UserInfo booking = currentUserStates.get(chatID);
+                Slot slot = findSlot(booking.getDate(), booking.getTime());
 
-                Slot slot= findSlot(booking.getDate(), booking.getTime());
-
-                if (slot!=null){
+                if (slot != null) {
                     slot.setBooked(true);
+                    long bookingId = Database.insertBooking(
+                            booking.getSubject(),
+                            booking.getDbUserId(),
+                            slot.getDbId()
+                    );
+                    booking.setDbBookingId(bookingId);
                 }
                 // Если отсутсвует такой ид, то создает новый список
                 savedUserStates.putIfAbsent(chatID, new ArrayList<>());
@@ -189,11 +225,11 @@ public class Client extends TelegramLongPollingBot {
                 mainMenu(chatID);
             }
         }
-        else if (update.hasCallbackQuery()){
-            CallbackQuery query= update.getCallbackQuery();
-            int messageID= query.getMessage().getMessageId();
+        else if (update.hasCallbackQuery()) {
+            CallbackQuery query = update.getCallbackQuery();
+            int messageID = query.getMessage().getMessageId();
             String data = query.getData();
-            long chatID= query.getMessage().getChatId();
+            long chatID = query.getMessage().getChatId();
 
             AnswerCallbackQuery answer = new AnswerCallbackQuery();
             answer.setCallbackQueryId(query.getId());
@@ -204,41 +240,54 @@ public class Client extends TelegramLongPollingBot {
 
                 List<UserInfo> bookings = savedUserStates.get(chatID);
 
-                UserInfo booking= bookings.get(index);
+                UserInfo booking = bookings.get(index);
 
-                Slot slot= findSlot(
+                Database.deleteBooking(booking.getDbBookingId());
+
+                Slot slot = findSlot(
                         booking.getDate(),
                         booking.getTime()
                 );
 
-                if (slot != null){
+                if (slot != null) {
                     slot.setBooked(false);
                 }
+
                 bookings.remove(index);
                 myBookings(chatID);
+
             } else if (data.startsWith("deleteBookingAdmin:")) {
-                String data1= update.getCallbackQuery().getData();
-                String[] parts= data1.split(":");
-                long studentChatID= Long.parseLong(parts[1]);
-                int index= Integer.parseInt(parts[2])-1;
+                String data1 = update.getCallbackQuery().getData();
+                String[] parts = data1.split(":");
+                long studentChatID = Long.parseLong(parts[1]);
+                int index = Integer.parseInt(parts[2]) - 1;
 
-                List<UserInfo> bookings= savedUserStates.get(studentChatID);
+                List<UserInfo> bookings = savedUserStates.get(studentChatID);
 
-                UserInfo booking= bookings.get(index);
-                Slot slot= findSlot(
+                UserInfo booking = bookings.get(index);
+
+                Database.deleteBooking(booking.getDbBookingId());
+
+                Slot slot = findSlot(
                         booking.getDate(),
                         booking.getTime()
                 );
 
-                if(slot!=null){
+                if (slot != null) {
                     slot.setBooked(false);
                 }
+
                 bookings.remove(index);
-                if(bookings.isEmpty()){
-                    savedUserStates.remove(chatID);
+
+                if (bookings.isEmpty()) {
+                    savedUserStates.remove(studentChatID);
                 }
+
+
                 myBookingsAdmin(chatID);
-            } else if (data.startsWith("date:")) {
+
+
+        } else if (data.startsWith("date:")) {
                 String date= data.substring(5);
 
                 if (selectedDates.contains(date)){
@@ -298,6 +347,12 @@ public class Client extends TelegramLongPollingBot {
                 for (String date : selectedDates) {
                     for (String time : selectedTimes) {
                         Slot slot = new Slot(date, time);
+
+                        LocalDate ld = parseDisplayDate(date);
+                        LocalTime lt = parseDisplayTime(time);
+                        long dbId = Database.insertLesson(ld, lt);
+                        slot.setDbId(dbId);
+
                         slots.add(slot);
                     }
                 }
@@ -327,7 +382,7 @@ public class Client extends TelegramLongPollingBot {
     }
 
     public String getBotToken() {
-        return "8934207972:AAHdMPtS-aq_q39u7LcgGo3FXmoTNO2BGl4";
+        return System.getenv("BOT_TOKEN");
     }
 
     private ReplyKeyboardMarkup mainMenu(long chatID) {
@@ -880,6 +935,22 @@ public class Client extends TelegramLongPollingBot {
             }
         }
         oldBookingMessageIds.put(chatID, newMessageIds);
+    }
+
+    private LocalDate parseDisplayDate(String display) {
+        // "11.08 (Вт)" - берём только "11.08"
+        String datePart = display.substring(0, display.indexOf(" "));
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd.MM");
+        MonthDay md = MonthDay.parse(datePart, fmt);
+        LocalDate result = md.atYear(LocalDate.now().getYear());
+        if (result.isBefore(LocalDate.now())) {
+            result = result.plusYears(1); // на случай перехода через новый год
+        }
+        return result;
+    }
+
+    private LocalTime parseDisplayTime(String display) {
+        return LocalTime.parse(display, DateTimeFormatter.ofPattern("HH:mm"));
     }
 
     private void returnHome(long chatID){

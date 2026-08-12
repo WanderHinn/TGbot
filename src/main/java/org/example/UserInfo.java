@@ -65,6 +65,19 @@ public class UserInfo {
         this.name = name;
     }
 
+
+    private long dbUserId;
+
+    private long dbBookingId;
+
+    public long getDbUserId() { return dbUserId; }
+
+    public void setDbUserId(long dbUserId) { this.dbUserId = dbUserId; }
+
+    public long getDbBookingId() { return dbBookingId; }
+
+    public void setDbBookingId(long dbBookingId) { this.dbBookingId = dbBookingId; }
+
     @Override
     public String toString() {
         return "Ваше имя: "+ name + "\n" +
