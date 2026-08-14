@@ -1,6 +1,7 @@
 package org.example;
 
 public class UserInfo {
+    private long studentID;
     private String userName;
     private String name;
     private String about;
@@ -8,6 +9,14 @@ public class UserInfo {
     private String duration;
     private String date;
     private String time;
+
+    public long getStudentID() {
+        return studentID;
+    }
+
+    public void setStudentID(long studentID) {
+        this.studentID = studentID;
+    }
 
     public String getUserName() {
         return userName;
