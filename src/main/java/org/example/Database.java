@@ -39,18 +39,29 @@ public class Database {
 
     // ---------- Lessons ----------
 
-    public static long insertLesson(LocalDate date, LocalTime time) {
-        String sql = "INSERT INTO Lessons (lesson_date, lesson_time) VALUES (?, ?) RETURNING id";
+    public static long insertLesson(LocalDate date, LocalTime time, long teacherId) {
+        String sql = """
+        INSERT INTO Lessons (lesson_date, lesson_time, teacher_id)
+        VALUES (?, ?, ?)
+        RETURNING id
+        """;
+
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
+
             ps.setDate(1, Date.valueOf(date));
             ps.setTime(2, Time.valueOf(time));
+            ps.setLong(3, teacherId);
+
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getLong("id");
+                if (rs.next()) {
+                    return rs.getLong("id");
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
         return -1;
     }
 
@@ -81,5 +92,40 @@ public class Database {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+
+    // --------Teachers---------
+
+    public static long upsertTeacher(long chatId, String name, String username, String subject) {
+        String sql = """
+        INSERT INTO Teachers (teacher_chat_id, name, username, subject)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (teacher_chat_id)
+        DO UPDATE SET
+            name = EXCLUDED.name,
+            username = EXCLUDED.username,
+            subject = EXCLUDED.subject
+        RETURNING id
+        """;
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, chatId);
+            ps.setString(2, name);
+            ps.setString(3, username);
+            ps.setString(4, subject);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong("id");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return -1;
     }
 }

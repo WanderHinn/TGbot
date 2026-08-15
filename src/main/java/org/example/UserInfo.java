@@ -1,6 +1,7 @@
 package org.example;
 
 public class UserInfo {
+    private long studentID;
     private String userName;
     private String name;
     private String about;
@@ -8,6 +9,17 @@ public class UserInfo {
     private String duration;
     private String date;
     private String time;
+
+    private long dbUserId;
+    private long dbBookingId;
+
+    public long getStudentID() {
+        return studentID;
+    }
+
+    public void setStudentID(long studentID) {
+        this.studentID = studentID;
+    }
 
     public String getUserName() {
         return userName;
@@ -65,25 +77,28 @@ public class UserInfo {
         this.name = name;
     }
 
+    public long getDbUserId() {
+        return dbUserId;
+    }
 
-    private long dbUserId;
+    public void setDbUserId(long dbUserId) {
+        this.dbUserId = dbUserId;
+    }
 
-    private long dbBookingId;
+    public long getDbBookingId() {
+        return dbBookingId;
+    }
 
-    public long getDbUserId() { return dbUserId; }
-
-    public void setDbUserId(long dbUserId) { this.dbUserId = dbUserId; }
-
-    public long getDbBookingId() { return dbBookingId; }
-
-    public void setDbBookingId(long dbBookingId) { this.dbBookingId = dbBookingId; }
+    public void setDbBookingId(long dbBookingId) {
+        this.dbBookingId = dbBookingId;
+    }
 
     @Override
     public String toString() {
-        return "Ваше имя: "+ name + "\n" +
-                "Предмет: "+ subject+ "\n" +
-                "Длительность урока: "+ duration + "\n" +
-                "Дата проведения урока: "+ date+ "\n" +
-                "Время проведения урока: "+ time;
+        return "Ваше имя: " + name + "\n" +
+                "Предмет: " + subject + "\n" +
+                "Длительность урока: " + duration + "\n" +
+                "Дата проведения урока: " + date + "\n" +
+                "Время проведения урока: " + time;
     }
 }
