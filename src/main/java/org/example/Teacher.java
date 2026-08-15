@@ -37,4 +37,15 @@ public class Teacher {
     public void setTeacherID(long teacherID) {
         this.teacherID = teacherID;
     }
+
+
+    private long dbTeacherId;
+
+    public long getDbTeacherId() {
+        return dbTeacherId;
+    }
+
+    public void setDbTeacherId(long dbTeacherId) {
+        this.dbTeacherId = dbTeacherId;
+    }
 }

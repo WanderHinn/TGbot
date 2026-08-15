@@ -10,6 +10,9 @@ public class UserInfo {
     private String date;
     private String time;
 
+    private long dbUserId;
+    private long dbBookingId;
+
     public long getStudentID() {
         return studentID;
     }
@@ -74,12 +77,28 @@ public class UserInfo {
         this.name = name;
     }
 
+    public long getDbUserId() {
+        return dbUserId;
+    }
+
+    public void setDbUserId(long dbUserId) {
+        this.dbUserId = dbUserId;
+    }
+
+    public long getDbBookingId() {
+        return dbBookingId;
+    }
+
+    public void setDbBookingId(long dbBookingId) {
+        this.dbBookingId = dbBookingId;
+    }
+
     @Override
     public String toString() {
-        return "Ваше имя: "+ name + "\n" +
-                "Предмет: "+ subject+ "\n" +
-                "Длительность урока: "+ duration + "\n" +
-                "Дата проведения урока: "+ date+ "\n" +
-                "Время проведения урока: "+ time;
+        return "Ваше имя: " + name + "\n" +
+                "Предмет: " + subject + "\n" +
+                "Длительность урока: " + duration + "\n" +
+                "Дата проведения урока: " + date + "\n" +
+                "Время проведения урока: " + time;
     }
 }
