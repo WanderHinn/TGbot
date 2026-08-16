@@ -27,6 +27,11 @@ public class Client extends TelegramLongPollingBot {
     private final Set<String> selectedDates = new TreeSet<>();
     private final Set<String> selectedTimes = new TreeSet<>();
 
+    public Client() {
+        slots.addAll(Database.loadLessons());
+        teachers.putAll(Database.loadTeachers());
+    }
+
     private static final List<String> SUBJECTS = List.of(
             "🧮 Математика",
             "🏴 Английский",
@@ -377,7 +382,18 @@ public class Client extends TelegramLongPollingBot {
             return;
         }
 
-        Slot slot = findSlot(booking.getDate(), booking.getTime());
+        Teacher teacher = getTeacherForSubject(booking.getSubject());
+
+        if (teacher == null) {
+            sendMessage(chatID, "Не удалось определить учителя.");
+            return;
+        }
+
+        Slot slot = findSlot(
+                booking.getDate(),
+                booking.getTime(),
+                teacher.getDbTeacherId()
+        );
 
         if (slot == null || slot.isBooked()) {
             sendMessage(chatID, "Этот слот уже недоступен. Выберите другое время.");
@@ -441,8 +457,9 @@ public class Client extends TelegramLongPollingBot {
         if (data.startsWith("deleted:")) {
             int index = Integer.parseInt(data.substring("deleted:".length()));
 
-            List<UserInfo> bookings = savedUserStates.get(chatID);
-            if (bookings == null || index < 0 || index >= bookings.size()) {
+            List<UserInfo> bookings = Database.getBookingsForUser(chatID);
+
+            if (index < 0 || index >= bookings.size()) {
                 sendMessage(chatID, "Запись уже была удалена или не найдена.");
                 myBookings(chatID);
                 return;
@@ -454,50 +471,22 @@ public class Client extends TelegramLongPollingBot {
                 Database.deleteBooking(booking.getDbBookingId());
             }
 
-            Slot slot = findSlot(booking.getDate(), booking.getTime());
-            if (slot != null) {
-                slot.setBooked(false);
-            }
-
-            bookings.remove(index);
-
-            if (bookings.isEmpty()) {
-                savedUserStates.remove(chatID);
-            }
+            slots.clear();
+            slots.addAll(Database.loadLessons());
 
             myBookings(chatID);
             return;
         }
 
         if (data.startsWith("deleteBookingAdmin:")) {
-            String[] parts = data.split(":");
-            long studentChatID = Long.parseLong(parts[1]);
-            int index = Integer.parseInt(parts[2]) - 1;
+            long bookingId = Long.parseLong(
+                    data.substring("deleteBookingAdmin:".length())
+            );
 
-            List<UserInfo> bookings = savedUserStates.get(studentChatID);
-            if (bookings == null || index < 0 || index >= bookings.size()) {
-                sendMessage(chatID, "Запись уже была удалена или не найдена.");
-                myBookingsAdmin(chatID);
-                return;
-            }
+            Database.deleteBooking(bookingId);
 
-            UserInfo booking = bookings.get(index);
-
-            if (booking.getDbBookingId() > 0) {
-                Database.deleteBooking(booking.getDbBookingId());
-            }
-
-            Slot slot = findSlot(booking.getDate(), booking.getTime());
-            if (slot != null) {
-                slot.setBooked(false);
-            }
-
-            bookings.remove(index);
-
-            // В исходной teacher-ветке здесь ошибочно удалялся chatID админа.
-            if (bookings.isEmpty()) {
-                savedUserStates.remove(studentChatID);
-            }
+            slots.clear();
+            slots.addAll(Database.loadLessons());
 
             myBookingsAdmin(chatID);
             return;
@@ -575,19 +564,19 @@ public class Client extends TelegramLongPollingBot {
         for (String date : selectedDates) {
             for (String time : selectedTimes) {
                 // Не создаём дубликат в оперативной памяти.
-                if (findSlot(date, time) != null) {
-                    continue;
-                }
-
-                LocalDate ld = parseDisplayDate(date);
-                LocalTime lt = parseDisplayTime(time);
-
                 Teacher teacher = teachers.get(chatID);
 
                 if (teacher == null || teacher.getDbTeacherId() <= 0) {
                     sendMessage(chatID, "Не удалось определить учителя.");
                     return;
                 }
+
+                if (findSlot(date, time, teacher.getDbTeacherId()) != null) {
+                    continue;
+                }
+
+                LocalDate ld = parseDisplayDate(date);
+                LocalTime lt = parseDisplayTime(time);
 
                 long dbId = Database.insertLesson(
                         ld,
@@ -601,6 +590,7 @@ public class Client extends TelegramLongPollingBot {
 
                 Slot slot = new Slot(date, time);
                 slot.setDbId(dbId);
+                slot.setTeacherId(teacher.getDbTeacherId());
                 slots.add(slot);
                 created++;
             }
@@ -814,7 +804,8 @@ public class Client extends TelegramLongPollingBot {
         deleteOldBookingMessages(chatID);
 
         List<Integer> newMessageIds = new ArrayList<>();
-        List<UserInfo> bookings = savedUserStates.getOrDefault(chatID, new ArrayList<>());
+        List<UserInfo> bookings =
+                Database.getBookingsForUser(chatID);
 
         if (bookings.isEmpty()) {
             SendMessage message = new SendMessage();
@@ -1010,7 +1001,10 @@ public class Client extends TelegramLongPollingBot {
 
         List<Integer> newMessageIds = new ArrayList<>();
 
-        if (savedUserStates.isEmpty()) {
+        List<UserInfo> bookings =
+                Database.getBookingsForTeacher(chatID);
+
+        if (bookings.isEmpty()) {
             SendMessage message = new SendMessage();
             message.setChatId(chatID);
             message.setText("У вас нет уроков в расписании 😕");
@@ -1026,55 +1020,53 @@ public class Client extends TelegramLongPollingBot {
             return;
         }
 
-        for (Map.Entry<Long, List<UserInfo>> entry : savedUserStates.entrySet()) {
-            long studentChatID = entry.getKey();
-            List<UserInfo> studentBookings = entry.getValue();
-
+        for (UserInfo booking : bookings) {
             StringBuilder sb = new StringBuilder();
-            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
 
-            for (int i = 0; i < studentBookings.size(); i++) {
-                UserInfo userInfo = studentBookings.get(i);
-                int lessonNumber = i + 1;
+            sb.append("<b>👨‍🎓 Ученик:</b> ")
+                    .append(booking.getname())
+                    .append("\n");
 
-                InlineKeyboardButton removeButton = new InlineKeyboardButton();
-                removeButton.setCallbackData(
-                        "deleteBookingAdmin:" + studentChatID + ":" + lessonNumber
-                );
-                removeButton.setText("Удалить запись номер " + lessonNumber + " ❌");
-                rows.add(List.of(removeButton));
+            if (booking.getUserName() != null
+                    && !booking.getUserName().isBlank()) {
 
-                if (i == 0) {
-                    sb.append("<b>👨‍🎓 Ученик:</b> ")
-                            .append(userInfo.getname())
-                            .append("\n");
-
-                    if (userInfo.getUserName() != null && !userInfo.getUserName().isBlank()) {
-                        sb.append("🔗 <b>Профиль:</b> ")
-                                .append("https://t.me/")
-                                .append(userInfo.getUserName())
-                                .append("\n\n");
-                    } else {
-                        sb.append("🔗 <b>Профиль:</b> ")
-                                .append("tg://user?id=")
-                                .append(studentChatID)
-                                .append("\n\n");
-                    }
-                }
-
-                sb.append("<b>✏️ Запись номер:</b> ").append(lessonNumber).append("\n\n");
-                sb.append("<b>📚 Предмет:</b> ").append(userInfo.getSubject()).append("\n");
-                sb.append("<b>⌛️ Длительность урока:</b> ").append(userInfo.getDuration()).append("\n");
-                sb.append("<b>📆 Дата проведения:</b> ").append(userInfo.getDate()).append("\n");
-                sb.append("<b>🕐 Время проведения:</b> ").append(userInfo.getTime()).append("\n");
-
-                if (i < studentBookings.size() - 1) {
-                    sb.append("\n");
-                }
+                sb.append("🔗 <b>Профиль:</b> https://t.me/")
+                        .append(booking.getUserName())
+                        .append("\n");
+            } else {
+                sb.append("🔗 <b>Профиль:</b> tg://user?id=")
+                        .append(booking.getStudentID())
+                        .append("\n");
             }
 
-            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-            markup.setKeyboard(rows);
+            sb.append("\n");
+            sb.append("<b>📚 Предмет:</b> ")
+                    .append(booking.getSubject())
+                    .append("\n");
+
+            sb.append("<b>📆 Дата:</b> ")
+                    .append(booking.getDate())
+                    .append("\n");
+
+            sb.append("<b>🕐 Время:</b> ")
+                    .append(booking.getTime())
+                    .append("\n");
+
+            InlineKeyboardButton removeButton =
+                    new InlineKeyboardButton();
+
+            removeButton.setText("Удалить запись ❌");
+
+            removeButton.setCallbackData(
+                    "deleteBookingAdmin:" + booking.getDbBookingId()
+            );
+
+            InlineKeyboardMarkup markup =
+                    new InlineKeyboardMarkup();
+
+            markup.setKeyboard(
+                    List.of(List.of(removeButton))
+            );
 
             SendMessage message = new SendMessage();
             message.setChatId(chatID);
@@ -1257,9 +1249,11 @@ public class Client extends TelegramLongPollingBot {
 
     // ---------- Slots ----------
 
-    private Slot findSlot(String date, String time) {
+    private Slot findSlot(String date, String time, long teacherId) {
         for (Slot slot : slots) {
-            if (slot.getDate().equals(date) && slot.getTime().equals(time)) {
+            if (slot.getDate().equals(date)
+                    && slot.getTime().equals(time)
+                    && slot.getTeacherId() == teacherId) {
                 return slot;
             }
         }
@@ -1386,5 +1380,15 @@ public class Client extends TelegramLongPollingBot {
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
+    }
+
+    private Teacher getTeacherForSubject(String subject) {
+        for (Teacher teacher : teachers.values()) {
+            if (subject.equals(teacher.getSubject())) {
+                return teacher;
+            }
+        }
+
+        return null;
     }
 }

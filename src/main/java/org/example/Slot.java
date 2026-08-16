@@ -39,4 +39,14 @@ public class Slot {
     public long getDbId() { return dbId; }
 
     public void setDbId(long dbId) { this.dbId = dbId; }
+
+    private long teacherId;
+
+    public long getTeacherId() {
+        return teacherId;
+    }
+
+    public void setTeacherId(long teacherId) {
+        this.teacherId = teacherId;
+    }
 }

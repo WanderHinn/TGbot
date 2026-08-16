@@ -3,6 +3,12 @@ package org.example;
 import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Database {
 
@@ -127,5 +133,223 @@ public class Database {
         }
 
         return -1;
+    }
+
+    public static List<Slot> loadLessons() {
+        List<Slot> result = new ArrayList<>();
+
+        String sql = """
+        SELECT
+            l.id,
+            l.lesson_date,
+            l.lesson_time,
+            l.teacher_id,
+            EXISTS (
+                SELECT 1
+                FROM Bookings b
+                WHERE b.lessons_id = l.id
+            ) AS booked
+        FROM Lessons l
+        ORDER BY l.lesson_date, l.lesson_time
+        """;
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                LocalDate date = rs.getDate("lesson_date").toLocalDate();
+                LocalTime time = rs.getTime("lesson_time").toLocalTime();
+
+                String displayDate = date.format(
+                        DateTimeFormatter.ofPattern("dd.MM (E)", new Locale("ru"))
+                );
+
+                String displayTime = time.format(
+                        DateTimeFormatter.ofPattern("HH:mm")
+                );
+
+                Slot slot = new Slot(displayDate, displayTime);
+
+                slot.setDbId(rs.getLong("id"));
+                slot.setTeacherId(rs.getLong("teacher_id"));
+                slot.setBooked(rs.getBoolean("booked"));
+
+                result.add(slot);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+
+    public static List<UserInfo> getBookingsForUser(long chatId) {
+        List<UserInfo> result = new ArrayList<>();
+
+        String sql = """
+        SELECT
+            b.id AS booking_id,
+            b.subject,
+            u.id AS user_id,
+            u.chatid,
+            u.firstname,
+            u.username,
+            l.lesson_date,
+            l.lesson_time
+        FROM Bookings b
+        JOIN UsersInfo u ON u.id = b.user_id
+        JOIN Lessons l ON l.id = b.lessons_id
+        WHERE u.chatid = ?
+        ORDER BY l.lesson_date, l.lesson_time
+        """;
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, chatId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    UserInfo booking = new UserInfo();
+
+                    booking.setDbBookingId(rs.getLong("booking_id"));
+                    booking.setDbUserId(rs.getLong("user_id"));
+                    booking.setStudentID(rs.getLong("chatid"));
+                    booking.setname(rs.getString("firstname"));
+                    booking.setUserName(rs.getString("username"));
+                    booking.setSubject(rs.getString("subject"));
+
+                    LocalDate date =
+                            rs.getDate("lesson_date").toLocalDate();
+
+                    LocalTime time =
+                            rs.getTime("lesson_time").toLocalTime();
+
+                    booking.setDate(date.format(
+                            DateTimeFormatter.ofPattern(
+                                    "dd.MM (E)",
+                                    new Locale("ru")
+                            )
+                    ));
+
+                    booking.setTime(time.format(
+                            DateTimeFormatter.ofPattern("HH:mm")
+                    ));
+
+                    result.add(booking);
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+
+    public static Map<Long, Teacher> loadTeachers() {
+        Map<Long, Teacher> result = new HashMap<>();
+
+        String sql = """
+        SELECT
+            id,
+            teacher_chat_id,
+            name,
+            username,
+            subject
+        FROM Teachers
+        """;
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                Teacher teacher = new Teacher();
+
+                teacher.setDbTeacherId(rs.getLong("id"));
+                teacher.setTeacherID(rs.getLong("teacher_chat_id"));
+                teacher.setName(rs.getString("name"));
+                teacher.setUserName(rs.getString("username"));
+                teacher.setSubject(rs.getString("subject"));
+
+                result.put(
+                        teacher.getTeacherID(),
+                        teacher
+                );
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+
+    public static List<UserInfo> getBookingsForTeacher(long teacherChatId) {
+        List<UserInfo> result = new ArrayList<>();
+
+        String sql = """
+        SELECT
+            b.id AS booking_id,
+            b.subject,
+            u.id AS user_id,
+            u.chatid,
+            u.firstname,
+            u.username,
+            l.lesson_date,
+            l.lesson_time
+        FROM Bookings b
+        JOIN UsersInfo u ON u.id = b.user_id
+        JOIN Lessons l ON l.id = b.lessons_id
+        JOIN Teachers t ON t.id = l.teacher_id
+        WHERE t.teacher_chat_id = ?
+        ORDER BY l.lesson_date, l.lesson_time
+        """;
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, teacherChatId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    UserInfo booking = new UserInfo();
+
+                    booking.setDbBookingId(rs.getLong("booking_id"));
+                    booking.setDbUserId(rs.getLong("user_id"));
+                    booking.setStudentID(rs.getLong("chatid"));
+                    booking.setname(rs.getString("firstname"));
+                    booking.setUserName(rs.getString("username"));
+                    booking.setSubject(rs.getString("subject"));
+
+                    LocalDate date =
+                            rs.getDate("lesson_date").toLocalDate();
+
+                    LocalTime time =
+                            rs.getTime("lesson_time").toLocalTime();
+
+                    booking.setDate(date.format(
+                            DateTimeFormatter.ofPattern(
+                                    "dd.MM (E)",
+                                    new Locale("ru")
+                            )
+                    ));
+
+                    booking.setTime(time.format(
+                            DateTimeFormatter.ofPattern("HH:mm")
+                    ));
+
+                    result.add(booking);
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return result;
     }
 }
