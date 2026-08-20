@@ -2,6 +2,7 @@ package org.example;
 
 public class UserInfo {
     private long studentID;
+    private long teacherID;
     private String userName;
     private String name;
     private String about;
@@ -12,6 +13,14 @@ public class UserInfo {
 
     private long dbUserId;
     private long dbBookingId;
+
+    public long getTeacherID() {
+        return teacherID;
+    }
+
+    public void setTeacherID(long teacherID) {
+        this.teacherID = teacherID;
+    }
 
     public long getStudentID() {
         return studentID;
@@ -95,10 +104,10 @@ public class UserInfo {
 
     @Override
     public String toString() {
-        return "Ваше имя: " + name + "\n" +
-                "Предмет: " + subject + "\n" +
-                "Длительность урока: " + duration + "\n" +
-                "Дата проведения урока: " + date + "\n" +
-                "Время проведения урока: " + time;
+        return "\uD83D\uDC68\u200D\uD83C\uDF93 <b>Ваше имя: </b>" + name + "\n" +
+                "\uD83D\uDCDA <b>Предмет: </b>" + subject + "\n" +
+                "⏳ <b>Длительность урока: </b>" + duration + "\n" +
+                "\uD83D\uDCC6 <b>Дата проведения урока: </b>" + date + "\n" +
+                "\uD83D\uDD50 <b>Время проведения урока: </b>" + time;
     }
 }
