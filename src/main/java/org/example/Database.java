@@ -196,6 +196,7 @@ public class Database {
             u.chatid,
             u.firstname,
             u.username,
+            u.about,
             l.lesson_date,
             l.lesson_time
         FROM Bookings b
@@ -220,6 +221,7 @@ public class Database {
                     booking.setname(rs.getString("firstname"));
                     booking.setUserName(rs.getString("username"));
                     booking.setSubject(rs.getString("subject"));
+                    booking.setAbout(rs.getString("about"));
 
                     LocalDate date =
                             rs.getDate("lesson_date").toLocalDate();
@@ -299,6 +301,7 @@ public class Database {
             u.chatid,
             u.firstname,
             u.username,
+            u.about,
             l.lesson_date,
             l.lesson_time
         FROM Bookings b
@@ -324,6 +327,7 @@ public class Database {
                     booking.setname(rs.getString("firstname"));
                     booking.setUserName(rs.getString("username"));
                     booking.setSubject(rs.getString("subject"));
+                    booking.setAbout(rs.getString("about"));
 
                     LocalDate date =
                             rs.getDate("lesson_date").toLocalDate();
@@ -351,5 +355,48 @@ public class Database {
         }
 
         return result;
+    }
+
+    public static boolean userExists(long chatId) {
+        String sql = """
+        SELECT 1
+        FROM UsersInfo
+        WHERE chatid = ?
+        LIMIT 1
+        """;
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, chatId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+
+    public static void updateUserAbout(long chatId, String about) {
+        String sql = """
+        UPDATE UsersInfo
+        SET about = ?
+        WHERE chatid = ?
+        """;
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, about);
+            ps.setLong(2, chatId);
+            ps.executeUpdate();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }
