@@ -373,7 +373,12 @@ public class Client extends TelegramLongPollingBot {
         }
 
         if (text.equals("Да")) {
+            UserInfo userInfo= currentUserStates.get(chatID);
+            Teacher teacher = findTeacherForSubject(userInfo.getSubject());
             confirmBooking(chatID);
+            if (teacher!=null){
+                bookingMessageAdmin(teacher.getTeacherID(), userInfo);
+            }
             return;
         }
 
@@ -1245,6 +1250,15 @@ public class Client extends TelegramLongPollingBot {
         return false;
     }
 
+    private Teacher findTeacherForSubject(String studentSubject) {
+        for (Teacher teacher : teachers.values()) {
+            if (studentSubject.equals(teacher.getSubject())) {
+                return teacher;
+            }
+        }
+        return null;
+    }
+
     private void myTeachers(long chatID) {
         List<UserInfo> studentBookings =
                 Database.getBookingsForUser(chatID);
@@ -1389,6 +1403,33 @@ public class Client extends TelegramLongPollingBot {
 
         sendMessageButton(chatID, text, markup);
     }
+
+    // ---------- Notions ----------
+
+    private void bookingMessageAdmin(long teacherChatID, UserInfo booking){
+        String name= booking.getname();
+        String subject= booking.getSubject();
+        String duration= booking.getDuration();
+        String date= booking.getDate();
+        String time= booking.getTime();
+
+        SendMessage message= new SendMessage();
+        message.setChatId(teacherChatID);
+
+        message.setText("🔔 Новая запись!\n\n" +
+                "Ученик: " + name + "\n" +
+                "Предмет: " + subject + "\n" +
+                "Дата: " + date + "\n" +
+                "Время: " + time + "\n" +
+                "Длительность: " + duration);
+
+        try{
+            execute(message);
+        } catch(TelegramApiException e){
+            e.printStackTrace();
+        }
+    }
+
 
     // ---------- Helpers ----------
 
