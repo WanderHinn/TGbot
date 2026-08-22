@@ -1272,7 +1272,7 @@ public class Client extends TelegramLongPollingBot {
 
     private void subjectAdmin(long chatID) {
         KeyboardButton subject1 = new KeyboardButton("🧮 Математика");
-        KeyboardButton subject2 = new KeyboardButton("🏴 Английский");
+        KeyboardButton subject2 = new KeyboardButton("\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F Английский");
         KeyboardButton subject3 = new KeyboardButton("🇪🇪 Эстонский");
 
         KeyboardRow row = new KeyboardRow();
