@@ -368,7 +368,8 @@ public class Client extends TelegramLongPollingBot {
                     && bookingUser.getDate()!=null
                     && getAvailableTimes(
                     bookingUser.getDate(),
-                    bookingUser.getTeacherID()
+                    bookingUser.getTeacherID(),
+                    bookingUser.getDuration()
             ).contains(text)) {
 
                 bookingUser.setTime(text);
@@ -413,6 +414,12 @@ public class Client extends TelegramLongPollingBot {
 
     private void confirmBooking(long chatID) {
         UserInfo booking = currentUserStates.get(chatID);
+        Slot blockedSlot = checkBlokedSlots(booking);
+        int duration = Integer.parseInt(booking.getDuration().replace(" минут", ""));
+
+        if (blockedSlot!= null){
+
+        }
 
         if (booking == null || booking.getDate() == null || booking.getTime() == null) {
             sendMessage(chatID, "Не удалось найти данные текущей записи. Попробуйте записаться заново.");
@@ -455,7 +462,8 @@ public class Client extends TelegramLongPollingBot {
         long bookingId = Database.insertBooking(
                 booking.getSubject(),
                 booking.getDbUserId(),
-                slot.getDbId()
+                slot.getDbId(),
+                duration
         );
 
         if (bookingId == -1) {
@@ -802,7 +810,8 @@ public class Client extends TelegramLongPollingBot {
         Set<String> availableTimes =
                 getAvailableTimes(
                         user.getDate(),
-                        user.getTeacherID()
+                        user.getTeacherID(),
+                        user.getDuration()
                 );
 
         if (availableTimes.isEmpty()) {
@@ -1431,18 +1440,53 @@ public class Client extends TelegramLongPollingBot {
         return dates;
     }
 
-    private Set<String> getAvailableTimes(String date, long teacherId) {
+    private Set<String> getAvailableTimes(String date, long teacherId, String duration) {
         Set<String> times = new TreeSet<>();
+
+        Teacher teacher= findTeacherByBD(teacherId);
+
+        if (teacher== null){
+            return times;
+        }
+
+        List<UserInfo> bookings = Database.getBookingsForTeacher(teacher.getTeacherID());
+
+        int newDuration = Integer.parseInt(duration.replace(" минут", ""));
+
 
         for (Slot slot : slots) {
             if (slot.getDate().equals(date)
                     && !slot.isBooked()
-                    && slot.getTeacherId() == teacherId) {
+                    && slot.getTeacherId() == teacherId
+                    ) {
 
-                times.add(slot.getTime());
+                LocalTime newStart = LocalTime.parse(slot.getTime());
+                LocalTime newEnd = newStart.plusMinutes(newDuration);
+
+                boolean blocked= false;
+
+                for (UserInfo booking : bookings) {
+                    if (!booking.getDate().equals(date)){
+                        continue;
+                    }
+
+                    LocalTime existingStart = LocalTime.parse(booking.getTime());
+
+                    int existingDuration = Integer.parseInt(booking.getDuration().replace(" минут", ""));
+
+                    LocalTime existingEnd = existingStart.plusMinutes(existingDuration);
+
+                    if (hasTimeConflict(newStart, newEnd, existingStart, existingEnd)){
+                        blocked = true;
+                        break;
+                    }
+                }
+
+                if (!blocked){
+                    times.add(slot.getTime());
+                }
             }
         }
-
         return times;
     }
 
@@ -1492,6 +1536,45 @@ public class Client extends TelegramLongPollingBot {
         markup.setResizeKeyboard(true);
 
         sendMessageButton(chatID, text, markup);
+    }
+
+    private Slot checkBlokedSlots(UserInfo booking){
+        LocalTime startTime= LocalTime.parse(booking.getTime());
+
+        int minutes = Integer.parseInt(booking.getDuration().replace(" минут", ""));
+
+        LocalTime endTime= startTime.plusMinutes(minutes);
+
+        for (Slot slot : slots) {
+            if (slot.getTeacherId()==booking.getTeacherID() && slot.getDate().equals(booking.getDate())){
+                LocalTime slotTime= LocalTime.parse(slot.getTime());
+
+                if (slotTime.isAfter(startTime) && slotTime.isBefore(endTime)){
+                    return slot;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isSlotBlocked(Slot slot, UserInfo booking){
+        LocalTime startTime= LocalTime.parse(booking.getTime());
+
+        int minutes = Integer.parseInt(booking.getDuration().replace(" минут", ""));
+
+        LocalTime endTime= startTime.plusMinutes(minutes);
+
+        LocalTime slotTime= LocalTime.parse(slot.getTime());
+
+        return slot.getTeacherId()==booking.getTeacherID() &&
+                slot.getDate().equals(booking.getDate()) &&
+                slotTime.isAfter(startTime) &&
+                slotTime.isBefore(endTime);
+
+    }
+
+    private boolean hasTimeConflict(LocalTime newStart, LocalTime newEnd, LocalTime existingStart, LocalTime existingEnd){
+        return newStart.isBefore(existingStart) && existingStart.isBefore(newEnd);
     }
 
     // ---------- Notions ----------

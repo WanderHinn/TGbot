@@ -73,13 +73,14 @@ public class Database {
 
     // ---------- Bookings ----------
 
-    public static long insertBooking(String subject, long userId, long lessonId) {
-        String sql = "INSERT INTO Bookings (subject, user_id, lessons_id) VALUES (?, ?, ?) RETURNING id";
+    public static long insertBooking(String subject, long userId, long lessonId, int duration) {
+        String sql = "INSERT INTO Bookings (subject, user_id, lessons_id, duration) VALUES (?, ?, ?, ?) RETURNING id";
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, subject);
             ps.setLong(2, userId);
             ps.setLong(3, lessonId);
+            ps.setInt(4, duration);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getLong("id");
             }
@@ -192,6 +193,7 @@ public class Database {
         SELECT
             b.id AS booking_id,
             b.subject,
+            b.duration,
             u.id AS user_id,
             u.chatid,
             u.firstname,
@@ -221,6 +223,7 @@ public class Database {
                     booking.setname(rs.getString("firstname"));
                     booking.setUserName(rs.getString("username"));
                     booking.setSubject(rs.getString("subject"));
+                    booking.setDuration(rs.getInt("duration")+ " минут");
                     booking.setAbout(rs.getString("about"));
 
                     LocalDate date =
@@ -297,6 +300,8 @@ public class Database {
         SELECT
             b.id AS booking_id,
             b.subject,
+            b.duration,
+            l.teacher_id,
             u.id AS user_id,
             u.chatid,
             u.firstname,
@@ -327,6 +332,8 @@ public class Database {
                     booking.setname(rs.getString("firstname"));
                     booking.setUserName(rs.getString("username"));
                     booking.setSubject(rs.getString("subject"));
+                    booking.setDuration(rs.getInt("duration")+ " минут");
+                    booking.setTeacherID(rs.getLong("teacher_id"));
                     booking.setAbout(rs.getString("about"));
 
                     LocalDate date =
