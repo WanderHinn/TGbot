@@ -199,6 +199,7 @@ public class Database {
             u.firstname,
             u.username,
             u.about,
+            l.teacher_id,
             l.lesson_date,
             l.lesson_time
         FROM Bookings b
@@ -224,6 +225,7 @@ public class Database {
                     booking.setUserName(rs.getString("username"));
                     booking.setSubject(rs.getString("subject"));
                     booking.setDuration(rs.getInt("duration")+ " минут");
+                    booking.setTeacherID(rs.getLong("teacher_id"));
                     booking.setAbout(rs.getString("about"));
 
                     LocalDate date =
