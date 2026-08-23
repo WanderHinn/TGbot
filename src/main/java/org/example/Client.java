@@ -1472,6 +1472,7 @@ public class Client extends TelegramLongPollingBot {
         message.setText("<b>Зарегистрируйте себя как учителя</b>");
         message.setChatId(chatID);
         message.setParseMode("HTML");
+        message.setReplyMarkup(markup);
 
         executeSafely(message);
     }
