@@ -193,6 +193,8 @@ public class Client extends TelegramLongPollingBot {
         if ((admin.isAdmin1(chatID) || admin.isAdmin2(chatID)) && text.equals("/admin")) {
             adminMode.put(chatID, true);
 
+            reloadTeachers();
+
             if (!teachers.containsKey(chatID)) {
                 newTeacher(chatID);
             } else {
@@ -1840,6 +1842,11 @@ public class Client extends TelegramLongPollingBot {
         } catch(TelegramApiException e){
             e.printStackTrace();
         }
+    }
+
+    private void reloadTeachers() {
+        teachers.clear();
+        teachers.putAll(Database.loadTeachers());
     }
 
 
